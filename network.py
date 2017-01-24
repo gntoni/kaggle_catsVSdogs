@@ -42,7 +42,7 @@ def load_data(inputsPath, labelsPath):
         N, chans, sizeX, sizeY = inputs.shape
         split_indices = (int(N*0.8), int((N*0.8)+(N*0.1)))
         inputs = inputs.reshape((-1, 3, sizeX, sizeY))
-        labels = labels.astype(theano.config.floatX)
+        labels = labels.astype(np.int32)
         X_train, X_val, X_test = np.split(inputs, split_indices)
         y_train, y_val, y_test = np.split(labels, split_indices)
         return X_train, y_train, X_val, y_val, X_test, y_test
@@ -62,8 +62,8 @@ class catVSdogCNN(object):
             self.trainParams = {
                 'learning_rate': 0.25,
                 'momentum': 0.9,
-                'batch_size': 500,
-                'num_epochs': 800
+                'batch_size': 10,
+                'num_epochs': 400
             }
 
             # Create a loss expression for training, i.e., a scalar objective
@@ -180,7 +180,7 @@ class catVSdogCNN(object):
             # Fully-connected layer of 256 units and 50% dropout on its inputs:
             network = lasagne.layers.DenseLayer(
                                  lasagne.layers.dropout(network, p=0.5),
-                                 num_units=512,
+                                 num_units=128,
                                  nonlinearity=lasagne.nonlinearities.rectify)
             network = lasagne.layers.BatchNormLayer(network)
             # The 10-unit output layer with 50% dropout on its inputs:
