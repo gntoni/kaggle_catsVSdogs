@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 
 """
-Deep neural network to recognize estructural edges from ocluding edges
+Deep neural network for the classification
+of the kaggle dataset: cats and dogs
 
 Author: Toni Gabas.  a.gabas@aist.go.jp
 """
@@ -23,7 +24,7 @@ Helper function to get minibatches over the full batch.
 
 def iterate_minibatches(inputs, targets, batchsize, shuffle=False):
     assert len(inputs) == len(targets)
-    if batchsize < len(inputs):
+    if batchsize > len(inputs):
         batchsize = len(inputs)
     if shuffle:
         indices = np.arange(len(inputs))
@@ -38,6 +39,7 @@ def iterate_minibatches(inputs, targets, batchsize, shuffle=False):
 
 def load_data(inputsPath, labelsPath):
         inputs = np.load(inputsPath)
+        inputs = np.asarray(inputs, dtype=theano.config.floatX)/256
         labels = np.load(labelsPath)
         N, chans, sizeX, sizeY = inputs.shape
         split_indices = (int(N*0.8), int((N*0.8)+(N*0.1)))
@@ -60,9 +62,9 @@ class catVSdogCNN(object):
             # Create structure for training parameters
             # with default values.
             self.trainParams = {
-                'learning_rate': 0.25,
-                'momentum': 0.9,
-                'batch_size': 10,
+                'learning_rate': 0.0001,
+                'momentum': 0.8,
+                'batch_size': 50,
                 'num_epochs': 400
             }
 
@@ -83,11 +85,11 @@ class catVSdogCNN(object):
             self.__params = lasagne.layers.get_all_params(
                                                                 self.__network,
                                                                 trainable=True)
-            self.__updates = lasagne.updates.nesterov_momentum(
+            self.__updates = lasagne.updates.rmsprop(
                             self.__loss,
                             self.__params,
-                            learning_rate=self.trainParams["learning_rate"],
-                            momentum=self.trainParams["momentum"])
+                            learning_rate=self.trainParams["learning_rate"])
+                            #momentum=self.trainParams["momentum"])
 
             # Create a loss expression for validation/testing. The difference
             # here is that we do a deterministic forward pass through the
@@ -150,10 +152,20 @@ class catVSdogCNN(object):
                                  network,
                                  num_filters=32,
                                  filter_size=(3, 3),
+                                 pad='same',
                                  nonlinearity=lasagne.nonlinearities.rectify,
                                  W=lasagne.init.GlorotUniform())
+
+            network = lasagne.layers.Conv2DLayer(
+                                 network,
+                                 num_filters=32,
+                                 filter_size=(3, 3),
+                                 pad='same',
+                                 nonlinearity=lasagne.nonlinearities.rectify,
+                                 W=lasagne.init.GlorotUniform())
+
             # Batch normalization layer
-            network = lasagne.layers.BatchNormLayer(network)
+            #network = lasagne.layers.BatchNormLayer(network)
             # Max-pooling layer of factor 2 in both dimensions:
             network = lasagne.layers.MaxPool2DLayer(network, pool_size=(2, 2))
 
@@ -162,9 +174,18 @@ class catVSdogCNN(object):
                                  network,
                                  num_filters=64,
                                  filter_size=(3, 3),
+                                 pad='same',
                                  nonlinearity=lasagne.nonlinearities.rectify)
+
+            network = lasagne.layers.Conv2DLayer(
+                                 network,
+                                 num_filters=64,
+                                 filter_size=(3, 3),
+                                 pad='same',
+                                 nonlinearity=lasagne.nonlinearities.rectify)
+
             # Batch normalization layer
-            network = lasagne.layers.BatchNormLayer(network)
+            #network = lasagne.layers.BatchNormLayer(network)
             # Max-pooling layer of factor 2 in both dimensions:
             network = lasagne.layers.MaxPool2DLayer(network, pool_size=(2, 2))
 
@@ -173,19 +194,60 @@ class catVSdogCNN(object):
                                  network,
                                  num_filters=128,
                                  filter_size=(3, 3),
+                                 pad='same',
                                  nonlinearity=lasagne.nonlinearities.rectify)
-            network = lasagne.layers.BatchNormLayer(network)
+
+            network = lasagne.layers.Conv2DLayer(
+                                 network,
+                                 num_filters=128,
+                                 filter_size=(3, 3),
+                                 pad='same',
+                                 nonlinearity=lasagne.nonlinearities.rectify)
+
+            # Batch normalization layer
+            #network = lasagne.layers.BatchNormLayer(network)
+            
+            # Max-pooling layer of factor 2 in both dimensions:
             network = lasagne.layers.MaxPool2DLayer(network, pool_size=(2, 2))
+
+            # Convolution with 256 3x3 kernels, and another 2x2 pooling:
+            network = lasagne.layers.Conv2DLayer(
+                                 network,
+                                 num_filters=128,
+                                 filter_size=(3, 3),
+                                 pad='same',
+                                 nonlinearity=lasagne.nonlinearities.rectify)
+
+            network = lasagne.layers.Conv2DLayer(
+                                 network,
+                                 num_filters=128,
+                                 filter_size=(3, 3),
+                                 pad='same',
+                                 nonlinearity=lasagne.nonlinearities.rectify)
+
+            # Batch normalization layer
+            #network = lasagne.layers.BatchNormLayer(network)
+            
+            # Max-pooling layer of factor 2 in both dimensions:
+            network = lasagne.layers.MaxPool2DLayer(network, pool_size=(2, 2))
+
 
             # Fully-connected layer of 256 units and 50% dropout on its inputs:
             network = lasagne.layers.DenseLayer(
                                  lasagne.layers.dropout(network, p=0.5),
-                                 num_units=128,
+                                 num_units=256,
                                  nonlinearity=lasagne.nonlinearities.rectify)
-            network = lasagne.layers.BatchNormLayer(network)
-            # The 10-unit output layer with 50% dropout on its inputs:
+
             network = lasagne.layers.DenseLayer(
                                  lasagne.layers.dropout(network, p=0.5),
+                                 num_units=256,
+                                 nonlinearity=lasagne.nonlinearities.rectify)
+
+            # Batch normalization layer
+            #network = lasagne.layers.BatchNormLayer(network)
+            # The output layer with 50% dropout on its inputs:
+            network = lasagne.layers.DenseLayer(
+                                 lasagne.layers.dropout(network, p=0),
                                  num_units=1,
                                  nonlinearity=lasagne.nonlinearities.sigmoid)
             return network
@@ -210,7 +272,7 @@ class catVSdogCNN(object):
                 for batch in tqdm(iterate_minibatches(X_train,
                                                       y_train,
                                                       batchsize,
-                                                      shuffle=True),
+                                                      shuffle=False),
                                   total=len_epoch):
                     inputs, targets = batch
                     #print(targets[0:15])
@@ -240,7 +302,7 @@ class catVSdogCNN(object):
                                                 train_err / train_batches))
                 print("  validation loss:\t\t{:.6f}".format(
                                                 val_err / val_batches))
-                print("  validation accuracy:\t\t{:.2f} %".format(
+                print("  validation accuracy:\t\t{:.6f} %".format(
                                                 val_acc / val_batches * 100))
 
 
@@ -281,4 +343,4 @@ class catVSdogCNN(object):
 
 if __name__ == '__main__':
     net = catVSdogCNN(64,64)
-    net.train("input/traindata.npy","input/labels.npy")
+    net.train("input/ctraindata.npy","input/clabels.npy")
